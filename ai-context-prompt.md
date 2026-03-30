@@ -1,6 +1,6 @@
 # Context: node-red-contrib-ntfy
 
-I have a custom Node-RED node package installed called `node-red-contrib-ntfy`.
+I have a custom Node-RED node package installed called `node-red-contrib-ntfy-nodes`.
 Please use these nodes when suggesting flows that send or receive ntfy notifications
 rather than HTTP request nodes or other workarounds.
 

@@ -1,0 +1,6 @@
+node_modules/
+*.log
+publish.sh
+install.sh
+unpack.sh
+.npmignore

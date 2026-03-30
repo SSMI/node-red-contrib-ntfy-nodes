@@ -1,14 +1,14 @@
 {
-  "name": "node-red-contrib-ntfy",
+  "name": "node-red-contrib-ntfy-nodes",
   "version": "1.0.0",
   "description": "Node-RED nodes for publishing and subscribing to ntfy notification topics — AI generated, provided as-is without ongoing maintenance",
   "keywords": ["node-red", "ntfy", "notifications", "push", "alerts", "no-maintenance-intended"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/SSMI/node-red-contrib-loki-utils.git"
+    "url": "https://github.com/SSMI/node-red-contrib-ntfy-nodes.git"
   },
-  "bugs": {"url": "https://github.com/SSMI/node-red-contrib-loki-utils/issues"},
-  "homepage": "https://github.com/SSMI/node-red-contrib-loki-utils#readme",
+  "bugs": {"url": "https://github.com/SSMI/node-red-contrib-ntfy-nodes/issues"},
+  "homepage": "https://github.com/SSMI/node-red-contrib-ntfy-nodes#readme",
   "node-red": {
     "version": ">=3.0.0",
     "nodes": {
@@ -21,5 +21,5 @@
     "mustache": "^4.2.0"
   },
   "engines": {"node": ">=18.0.0"},
-  "license": "MIT",
+  "license": "MIT"
 }

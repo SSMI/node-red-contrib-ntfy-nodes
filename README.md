@@ -1,4 +1,4 @@
-# node-red-contrib-ntfy
+# node-red-contrib-ntfy-nodes
 
 > **⚠️ AI-GENERATED — NOT MAINTAINED**
 >
