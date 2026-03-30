@@ -1,0 +1,170 @@
+<script type="text/javascript">
+    RED.nodes.registerType('ntfy-in', {
+        category: 'ntfy',
+        color:    '#8B5CF6',
+        defaults: {
+            name:        { value: '' },
+            server:      { value: '', type: 'ntfy-config', required: true },
+            topic:       { value: '', required: true },
+            since:       { value: 'all' },
+            filterMsg:   { value: '' },
+            filterTitle: { value: '' },
+            filterPrio:  { value: '' },
+            filterTags:  { value: '' },
+            reconnectMs: { value: 5000 }
+        },
+        inputs:       1,
+        outputs:      1,
+        icon:         'font-awesome/fa-bell-o',
+        paletteLabel: 'ntfy in',
+        label: function () {
+            return this.name || (this.topic ? `ntfy ← ${this.topic}` : 'ntfy in');
+        },
+        labelStyle: function () {
+            return this.name ? 'node_label_italic' : '';
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="ntfy-in">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Watch alerts topic">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+    <div class="form-row">
+        <label for="node-input-topic"><i class="fa fa-hashtag"></i> Topic(s)</label>
+        <input type="text" id="node-input-topic"
+            placeholder="alerts  or  alerts,warnings,system">
+    </div>
+    <div class="form-row">
+        <label for="node-input-since"><i class="fa fa-history"></i> Since</label>
+        <select id="node-input-since">
+            <option value="all">all — all cached messages</option>
+            <option value="latest">latest — most recent only</option>
+            <option value="10m">10 minutes</option>
+            <option value="1h">1 hour</option>
+            <option value="12h">12 hours</option>
+            <option value="24h">24 hours</option>
+        </select>
+    </div>
+
+    <hr>
+    <p style="margin-left:110px;font-size:0.85em;color:#888">
+        Server-side filters — all optional
+    </p>
+    <div class="form-row">
+        <label for="node-input-filterMsg"><i class="fa fa-filter"></i> Message</label>
+        <input type="text" id="node-input-filterMsg"
+            placeholder="only messages containing this text">
+    </div>
+    <div class="form-row">
+        <label for="node-input-filterTitle"><i class="fa fa-filter"></i> Title</label>
+        <input type="text" id="node-input-filterTitle"
+            placeholder="only messages with this title">
+    </div>
+    <div class="form-row">
+        <label for="node-input-filterPrio"><i class="fa fa-filter"></i> Priority</label>
+        <input type="text" id="node-input-filterPrio"
+            placeholder="e.g. 4,5  or  high,urgent">
+    </div>
+    <div class="form-row">
+        <label for="node-input-filterTags"><i class="fa fa-filter"></i> Tags</label>
+        <input type="text" id="node-input-filterTags"
+            placeholder="e.g. warning">
+    </div>
+
+    <hr>
+    <div class="form-row">
+        <label for="node-input-reconnectMs"><i class="fa fa-refresh"></i> Reconnect</label>
+        <input type="number" id="node-input-reconnectMs"
+            placeholder="5000" style="width:80px"> ms
+    </div>
+</script>
+
+<script type="text/html" data-help-name="ntfy-in">
+    <p>Subscribe to one or more ntfy topics and emit a message for each
+       notification received.</p>
+    <p>Connects automatically on deploy and reconnects if the connection drops.</p>
+
+    <h3>Topics</h3>
+    <p>Enter a single topic name or a comma-separated list.
+       All matching messages are emitted on the same output port.
+       Use a Switch node on <code>msg.ntfyTopic</code> to route by topic.</p>
+
+    <h3>Output message properties</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">string</span></dt>
+        <dd>The notification message body.</dd>
+
+        <dt>ntfyTopic <span class="property-type">string</span></dt>
+        <dd>The topic the message arrived on.</dd>
+
+        <dt>ntfyTitle <span class="property-type">string</span></dt>
+        <dd>Notification title. Empty string if not set.</dd>
+
+        <dt>ntfyPriority <span class="property-type">number</span></dt>
+        <dd>Priority 1–5. Default 3.</dd>
+
+        <dt>ntfyTags <span class="property-type">string[]</span></dt>
+        <dd>Array of tag strings e.g. <code>["warning", "skull"]</code>.</dd>
+
+        <dt>ntfyClick <span class="property-type">string</span></dt>
+        <dd>Click URL. Empty string if not set.</dd>
+
+        <dt>ntfyIcon <span class="property-type">string</span></dt>
+        <dd>Icon URL. Empty string if not set.</dd>
+
+        <dt>ntfyActions <span class="property-type">object[]</span></dt>
+        <dd>Action button objects. Empty array if not set.</dd>
+
+        <dt>ntfyAttachment <span class="property-type">object | null</span></dt>
+        <dd>Attachment with <code>name</code>, <code>url</code>, <code>type</code>,
+            <code>size</code>, <code>expires</code>. Null if no attachment.</dd>
+
+        <dt>ntfyId <span class="property-type">string</span></dt>
+        <dd>Unique message ID assigned by the ntfy server.</dd>
+
+        <dt>ntfyTime <span class="property-type">number</span></dt>
+        <dd>Unix timestamp in seconds when the message was published.</dd>
+
+        <dt>ntfyEvent <span class="property-type">string</span></dt>
+        <dd>Always <code>"message"</code> for emitted messages.</dd>
+
+        <dt>ntfyRaw <span class="property-type">object</span></dt>
+        <dd>Full raw event object from the ntfy API.</dd>
+    </dl>
+
+    <h3>Runtime control — send into this node</h3>
+    <dl class="message-properties">
+        <dt>payload = "stop"</dt>
+        <dd>Disconnect and stop reconnecting.</dd>
+
+        <dt>payload = "start"</dt>
+        <dd>Reconnect if currently stopped.</dd>
+
+        <dt>ntfyOptions <span class="property-type">object</span></dt>
+        <dd>Change topic or filters at runtime. Triggers an immediate reconnect.</dd>
+    </dl>
+    <pre>
+msg.ntfyOptions = {
+    topic:       "new-topic,another",
+    since:       "10m",
+    filterPrio:  "4,5",
+    filterTags:  "warning",
+    filterMsg:   "error",
+    filterTitle: "Alert"
+};</pre>
+
+    <h3>Status</h3>
+    <ul>
+        <li><b>Yellow ring</b> — connecting</li>
+        <li><b>Green ring</b> — connected, waiting for messages</li>
+        <li><b>Green dot</b> — message received (shows topic name)</li>
+        <li><b>Red dot</b> — error</li>
+        <li><b>Grey ring</b> — stopped</li>
+    </ul>
+</script>

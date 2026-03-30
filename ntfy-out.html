@@ -1,0 +1,198 @@
+<script type="text/javascript">
+    RED.nodes.registerType('ntfy-out', {
+        category: 'ntfy',
+        color:    '#8B5CF6',
+        defaults: {
+            name:     { value: '' },
+            server:   { value: '', type: 'ntfy-config', required: true },
+            topic:    { value: '' },
+            title:    { value: '' },
+            priority: { value: '' },
+            tags:     { value: '' },
+            click:    { value: '' },
+            icon:     { value: '' },
+            attach:   { value: '' },
+            filename: { value: '' },
+            actions:  { value: '' },
+            email:    { value: '' },
+            delay:    { value: '' },
+            markdown: { value: false },
+            cache:    { value: '' },
+            firebase: { value: '' }
+        },
+        inputs:       1,
+        outputs:      1,
+        icon:         'font-awesome/fa-bell',
+        paletteLabel: 'ntfy out',
+        label: function () {
+            return this.name || (this.topic ? `ntfy → ${this.topic}` : 'ntfy out');
+        },
+        labelStyle: function () {
+            return this.name ? 'node_label_italic' : '';
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="ntfy-out">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Send ntfy notification">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+        <input type="text" id="node-input-server">
+    </div>
+
+    <hr>
+    <p style="margin-left:110px;font-size:0.85em;color:#888">
+        All text fields support Mustache templates e.g. <code>{{payload.topic}}</code>
+    </p>
+
+    <div class="form-row">
+        <label for="node-input-topic"><i class="fa fa-hashtag"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="my-alerts">
+    </div>
+    <div class="form-row">
+        <label for="node-input-title"><i class="fa fa-header"></i> Title</label>
+        <input type="text" id="node-input-title" placeholder="Alert title">
+    </div>
+    <div class="form-row">
+        <label for="node-input-priority"><i class="fa fa-exclamation"></i> Priority</label>
+        <select id="node-input-priority">
+            <option value="">Default (3)</option>
+            <option value="1">1 — min</option>
+            <option value="2">2 — low</option>
+            <option value="3">3 — default</option>
+            <option value="4">4 — high</option>
+            <option value="5">5 — urgent / max</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-tags"><i class="fa fa-tags"></i> Tags</label>
+        <input type="text" id="node-input-tags"
+            placeholder="warning,skull  (comma-separated emoji shortcodes)">
+    </div>
+
+    <hr>
+    <div class="form-row">
+        <label for="node-input-click"><i class="fa fa-mouse-pointer"></i> Click URL</label>
+        <input type="text" id="node-input-click" placeholder="https://...">
+    </div>
+    <div class="form-row">
+        <label for="node-input-icon"><i class="fa fa-image"></i> Icon URL</label>
+        <input type="text" id="node-input-icon" placeholder="https://...">
+    </div>
+    <div class="form-row">
+        <label for="node-input-attach"><i class="fa fa-paperclip"></i> Attach URL</label>
+        <input type="text" id="node-input-attach" placeholder="https://...  attach image from URL">
+    </div>
+    <div class="form-row">
+        <label for="node-input-filename"><i class="fa fa-file"></i> Filename</label>
+        <input type="text" id="node-input-filename" placeholder="photo.jpg">
+    </div>
+    <div class="form-row">
+        <label for="node-input-actions"><i class="fa fa-bolt"></i> Actions</label>
+        <input type="text" id="node-input-actions"
+            placeholder="view, Open dashboard, https://...">
+    </div>
+
+    <hr>
+    <div class="form-row">
+        <label for="node-input-email"><i class="fa fa-envelope"></i> Forward email</label>
+        <input type="text" id="node-input-email" placeholder="you@example.com">
+    </div>
+    <div class="form-row">
+        <label for="node-input-delay"><i class="fa fa-clock-o"></i> Delay</label>
+        <input type="text" id="node-input-delay" placeholder="30min  or  tomorrow, 9am">
+    </div>
+
+    <hr>
+    <div class="form-row">
+        <label for="node-input-markdown"><i class="fa fa-code"></i> Markdown</label>
+        <input type="checkbox" id="node-input-markdown"
+            style="display:inline-block;width:auto;vertical-align:top">
+        <label for="node-input-markdown" style="width:auto"> Enable Markdown rendering</label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-cache"><i class="fa fa-database"></i> Cache</label>
+        <select id="node-input-cache">
+            <option value="">Server default</option>
+            <option value="yes">yes</option>
+            <option value="no">no</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-firebase"><i class="fa fa-fire"></i> Firebase</label>
+        <select id="node-input-firebase">
+            <option value="">Server default</option>
+            <option value="yes">yes</option>
+            <option value="no">no</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="ntfy-out">
+    <p>Publish a message to an ntfy topic.</p>
+    <p>The message body is taken from <code>msg.payload</code> unless
+       <code>msg.ntfyOptions.message</code> is set.</p>
+    <p>All text fields in the node editor support <b>Mustache templates</b>
+       resolved against the incoming message at runtime.
+       Example: set <i>Topic</i> to <code>{{payload.topic}}</code>.</p>
+
+    <h3>Runtime override — msg.ntfyOptions</h3>
+    <p>Set <code>msg.ntfyOptions</code> on the incoming message to override any
+       node config field at runtime. All fields are optional and take priority
+       over node editor settings.</p>
+    <pre>
+msg.ntfyOptions = {
+    // Core
+    topic:    "alerts",
+    message:  "Hello",      // overrides msg.payload
+    title:    "My title",
+    priority: 4,            // 1–5 or min/low/default/high/urgent/max
+    tags:     ["warning"],  // array or comma-separated string
+
+    // Formatting
+    markdown: true,
+
+    // Actions
+    click:    "https://...",
+    icon:     "https://...",
+    actions:  "view, Open, https://...",  // string or object array
+
+    // Attachment (URL only)
+    attach:   "https://...",
+    filename: "photo.jpg",
+
+    // Scheduling
+    delay:    "30min",
+
+    // Forwarding
+    email:    "you@example.com",
+
+    // Advanced
+    cache:    "no",
+    firebase: "no",
+    id:       "msg-id"  // for updating/deleting existing messages
+};</pre>
+
+    <h3>Action buttons as array</h3>
+    <pre>
+msg.ntfyOptions.actions = [
+    { action: "view",  label: "Open",    url: "https://example.com" },
+    { action: "http",  label: "Approve", url: "https://api.example.com/approve",
+      method: "POST",  clear: true }
+];</pre>
+
+    <h3>Output</h3>
+    <p>On success the original message passes through with
+       <code>msg.ntfyResponse</code> set to the parsed JSON response from
+       the ntfy server.</p>
+
+    <h3>Status</h3>
+    <ul>
+        <li><b>Blue dot</b> — sending</li>
+        <li><b>Green dot</b> — sent successfully (shows HTTP status code)</li>
+        <li><b>Red dot</b> — error (check the debug panel)</li>
+    </ul>
+</script>

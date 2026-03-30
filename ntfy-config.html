@@ -1,0 +1,98 @@
+<script type="text/javascript">
+    RED.nodes.registerType('ntfy-config', {
+        category: 'config',
+        defaults: {
+            name:     { value: '' },
+            server:   { value: 'http://ntfy:80', required: true },
+            authType: { value: 'none' },
+            username: { value: '' }
+        },
+        credentials: {
+            password:      { type: 'password' },
+            token:         { type: 'password' },
+            customHeaders: { type: 'password' }
+        },
+        label: function () {
+            return this.name || this.server || 'ntfy server';
+        },
+        oneditprepare: function () {
+            function showAuth(type) {
+                $('#ntfy-auth-basic').toggle(type === 'basic');
+                $('#ntfy-auth-token').toggle(type === 'token');
+                $('#ntfy-auth-custom').toggle(type === 'custom');
+            }
+            showAuth(this.authType || 'none');
+            $('#node-config-input-authType').on('change', function () {
+                showAuth($(this).val());
+            });
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="ntfy-config">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="My ntfy server">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-server"><i class="fa fa-server"></i> Server URL</label>
+        <input type="text" id="node-config-input-server" placeholder="http://ntfy:80">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-authType"><i class="fa fa-lock"></i> Auth type</label>
+        <select id="node-config-input-authType">
+            <option value="none">None</option>
+            <option value="basic">Username &amp; password</option>
+            <option value="token">Access token</option>
+            <option value="custom">Custom headers</option>
+        </select>
+    </div>
+    <div id="ntfy-auth-basic">
+        <div class="form-row">
+            <label for="node-config-input-username"><i class="fa fa-user"></i> Username</label>
+            <input type="text" id="node-config-input-username">
+        </div>
+        <div class="form-row">
+            <label for="node-config-input-password"><i class="fa fa-key"></i> Password</label>
+            <input type="password" id="node-config-input-password">
+        </div>
+    </div>
+    <div id="ntfy-auth-token">
+        <div class="form-row">
+            <label for="node-config-input-token"><i class="fa fa-key"></i> Token</label>
+            <input type="password" id="node-config-input-token" placeholder="tk_...">
+        </div>
+    </div>
+    <div id="ntfy-auth-custom">
+        <div class="form-row">
+            <label for="node-config-input-customHeaders"><i class="fa fa-code"></i> Headers</label>
+            <textarea id="node-config-input-customHeaders" rows="4"
+                placeholder="Authorization: Bearer mytoken&#10;X-Custom-Header: value"
+                style="width:70%;font-family:monospace;font-size:12px"></textarea>
+        </div>
+        <div class="form-tips">One header per line in <code>Key: Value</code> format.</div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="ntfy-config">
+    <p>Shared configuration for ntfy nodes. Holds the server URL and credentials.
+       All ntfy-out and ntfy-in nodes reference this via their Server dropdown.</p>
+
+    <h3>Auth types</h3>
+    <dl class="message-properties">
+        <dt>None</dt>
+        <dd>No authentication. Suitable for local self-hosted instances with open topics.</dd>
+
+        <dt>Username &amp; password</dt>
+        <dd>HTTP Basic auth. Credentials are Base64-encoded and sent in the
+            <code>Authorization</code> header.</dd>
+
+        <dt>Access token</dt>
+        <dd>Bearer token auth. Create tokens in the ntfy web UI or via the ntfy CLI.
+            Tokens typically start with <code>tk_</code>.</dd>
+
+        <dt>Custom headers</dt>
+        <dd>Supply arbitrary headers one per line in <code>Key: Value</code> format.
+            Useful for reverse-proxy authentication schemes or non-standard setups.</dd>
+    </dl>
+</script>
