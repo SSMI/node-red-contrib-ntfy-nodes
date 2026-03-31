@@ -22,6 +22,7 @@ and runtime configuration via `msg.ntfyOptions`.
 |---|---|
 | `ntfy-config` | Shared configuration — server URL and credentials |
 | `ntfy-send` | Publish a notification to a topic |
+| `ntfy-watch` | Poll a topic on a fixed interval and emit incoming notifications |
 
 ## Installation
 
@@ -52,39 +53,52 @@ npm install /path/to/node-red-contrib-ntfy
 2. Set the server URL — e.g. `http://ntfy:80` for a local Docker instance
 3. Choose an auth type and fill in credentials if required
 4. Drop an **ntfy-send** node, set a topic and connect `msg.payload` as the body
-5. Drop an **ntfy-in** node, set the same topic, and wire its output to a debug node
+5. Drop an **ntfy-watch** node on the same topic to receive notifications
 
 ---
 
 ## ntfy-config
 
-Shared configuration node. Not placed on the canvas — referenced by ntfy-send and
-ntfy-in via a Server dropdown.
+Shared configuration node. Not placed on the canvas — referenced by ntfy-send
+and ntfy-watch via a Server dropdown.
 
-### Auth types
+### Auth type
 
 | Type | Description |
 |---|---|
 | None | No authentication. Suitable for local instances with open topics. |
-| Username & password | HTTP Basic auth. |
-| Access token | Bearer token. Create tokens in the ntfy web UI or CLI. |
-| Custom headers | Supply arbitrary `Key: Value` headers one per line. Useful for reverse-proxy auth. |
+| Username & password | HTTP Basic auth. Credentials sent as a Base64-encoded Authorization header. |
+| Access token | Bearer token auth. Create tokens in the ntfy web UI or CLI. Tokens typically start with `tk_`. |
+
+### Extra headers
+
+An optional field available regardless of which auth type is chosen. Supply
+arbitrary `Key: Value` headers one per line. Applied on top of the chosen auth
+type. Useful for reverse-proxy authentication schemes or any custom headers
+your ntfy setup requires.
+
+```
+X-Custom-Header: value
+Another-Header: value
+```
 
 ---
 
 ## ntfy-send
 
-Publish a notification. The message body comes from `msg.payload` unless overridden.
+Publish a notification to an ntfy topic when a message is received.
+
+The message body comes from `msg.payload` unless `msg.ntfyOptions.message` is set.
 
 All string fields in the node editor support **Mustache templates** resolved against
-the incoming message. For example, set *Topic* to `{{payload.topic}}` to use a
-dynamic topic from the message.
+the incoming message at runtime. For example, set *Topic* to `{{payload.topic}}`
+to use a dynamic topic from the message.
 
 ### Node editor fields
 
 | Field | ntfy header | Description |
 |---|---|---|
-| Topic | URL path | Target topic name. Required. |
+| Topic | URL path | Target topic name. Required. Mustache supported. |
 | Title | `Title` | Notification title. Defaults to topic URL if blank. |
 | Priority | `Priority` | 1 (min) to 5 (urgent/max). Default 3. |
 | Tags | `Tags` | Comma-separated emoji shortcodes or plain tags. |
@@ -102,6 +116,7 @@ dynamic topic from the message.
 ### Runtime override — msg.ntfyOptions
 
 Set `msg.ntfyOptions` to override any field at runtime. All fields optional.
+Takes priority over node editor settings and Mustache templates.
 
 ```javascript
 msg.ntfyOptions = {
@@ -120,7 +135,7 @@ msg.ntfyOptions = {
     icon:     "https://example.com/icon.png",
     actions:  "view, Open dashboard, https://example.com",
 
-    // Attachment
+    // Attachment (URL only — local file upload not supported)
     attach:   "https://example.com/photo.jpg",
     filename: "photo.jpg",
 
@@ -152,18 +167,88 @@ parsed JSON response from the ntfy server.
 
 ---
 
+## ntfy-watch
+
+Poll an ntfy topic on a fixed interval and emit a message for each new
+notification. Starts automatically on deploy.
+
+Tracks the last seen message ID as a watermark — only messages newer than the
+last emitted message are returned on each poll. No messages are missed as long
+as they remain in ntfy's cache (default 12 hours on self-hosted instances).
+
+### Node editor fields
+
+| Field | Description |
+|---|---|
+| Topic(s) | Single topic or comma-separated list e.g. `alerts,warnings` |
+| Poll every | Seconds between polls (default 30) |
+| Message filter | Server-side: only deliver messages containing this text |
+| Title filter | Server-side: only deliver messages with this title |
+| Priority filter | Server-side: e.g. `4,5` or `high,urgent` |
+| Tags filter | Server-side: only deliver messages with this tag |
+
+### Output message properties
+
+| Property | Type | Description |
+|---|---|---|
+| `msg.payload` | string | Notification message body |
+| `msg.ntfyTopic` | string | Topic the message arrived on |
+| `msg.ntfyTitle` | string | Notification title (empty if not set) |
+| `msg.ntfyPriority` | number | Priority 1–5 |
+| `msg.ntfyTags` | array | Tag strings |
+| `msg.ntfyClick` | string | Click URL (empty if not set) |
+| `msg.ntfyIcon` | string | Icon URL (empty if not set) |
+| `msg.ntfyActions` | array | Action button objects |
+| `msg.ntfyAttachment` | object\|null | Attachment details or null |
+| `msg.ntfyId` | string | Unique message ID |
+| `msg.ntfyTime` | number | Unix timestamp (seconds) |
+| `msg.ntfyEvent` | string | Always `"message"` |
+| `msg.ntfyRaw` | object | Full raw event from the ntfy API |
+
+### Runtime control — send into this node
+
+Wire an Inject node into ntfy-watch to control polling at runtime.
+
+```javascript
+// Stop polling (watermark is preserved)
+msg.payload = "stop";
+
+// Resume from last seen message ID
+msg.payload = "start";
+
+// Reset watermark to now and restart (old messages not replayed)
+msg.payload = "reset";
+
+// Change topic or filters — resets watermark and restarts immediately
+msg.ntfyOptions = {
+    topic:       "new-topic,another",
+    filterPrio:  "4,5",
+    filterTags:  "warning"
+};
+```
+
+### Status
+
+| Colour | Shape | Meaning |
+|---|---|---|
+| Green | Ring | Polling, no new messages since last check |
+| Green | Dot | New message(s) received (shows count) |
+| Red | Dot | Poll error or auth failure |
+| Grey | Ring | Stopped |
+
+---
 
 ## Action buttons
 
-ntfy supports up to 3 action buttons on a notification. Pass them as a string in
-ntfy's pipe-delimited format, or set `msg.ntfyOptions.actions` to a JSON array.
+ntfy supports up to 3 action buttons on a notification. Pass them as a string
+in ntfy's pipe-delimited format, or set `msg.ntfyOptions.actions` to a JSON array.
 
 String format (node editor or Mustache):
 ```
 view, Open dashboard, https://dashboard.example.com
 ```
 
-Multiple actions (comma-separated in the Actions header):
+Multiple actions (semicolon-separated):
 ```
 view, Open, https://example.com; http, Restart, https://api.example.com/restart, method=POST
 ```
@@ -172,8 +257,9 @@ JSON array (via msg.ntfyOptions):
 ```javascript
 msg.ntfyOptions = {
     actions: [
-        { action: "view",  label: "Open dashboard", url: "https://example.com" },
-        { action: "http",  label: "Restart",         url: "https://api.example.com/restart", method: "POST", clear: true }
+        { action: "view", label: "Open dashboard", url: "https://example.com" },
+        { action: "http", label: "Restart", url: "https://api.example.com/restart",
+          method: "POST", clear: true }
     ]
 };
 ```
@@ -186,7 +272,7 @@ msg.ntfyOptions = {
 ```
 [Inject] → [ntfy-send: topic=alerts, title=Test]
 ```
-`msg.payload` = `"Hello from Node-RED"` → sends a notification to the `alerts` topic.
+Set `msg.payload = "Hello from Node-RED"` to send a notification to the `alerts` topic.
 
 ### Dynamic topic from message
 Set the Topic field to `{{payload.topic}}` and send:
@@ -211,20 +297,25 @@ msg.ntfyOptions = {
 return msg;
 ```
 
-### Subscribe and forward to email
+### Watch a topic and route by priority
 ```
-[ntfy-in: topic=alerts] → [email node]
+[ntfy-watch: topic=alerts] → [Switch: msg.ntfyPriority >= 4] → [email node]
+```
+
+### Watch and forward to email
+```
+[ntfy-watch: topic=alerts] → [Function] → [email node]
 ```
 ```javascript
-// Function node between them
+// Function node
 msg.topic   = msg.ntfyTitle || "ntfy notification";
 msg.payload = `${msg.ntfyTitle}\n\n${msg.payload}`;
 return msg;
 ```
 
-### Runtime topic switch
+### Change topic at runtime
 ```
-[Inject] → [Function] → [ntfy-in]
+[Inject] → [Function] → [ntfy-watch]
 ```
 ```javascript
 // Switch the subscription to a new topic
@@ -251,7 +342,7 @@ services:
 ```
 
 The Node-RED ntfy-config server URL for this setup would be `http://ntfy:80`
-(assuming both containers share a Docker network).
+assuming both containers share a Docker network.
 
 ---
 
@@ -259,11 +350,9 @@ The Node-RED ntfy-config server URL for this setup would be `http://ntfy:80`
 
 - File attachments (uploading a local file as binary) are not supported in ntfy-send.
   Use the *Attach URL* field to attach files from a URL instead.
-- The ntfy-in node uses the JSON HTTP stream endpoint rather than WebSockets.
-  This is more reliable for long-running Node-RED deployments.
-- Scheduled message delivery (`delay`) is supported for publishing but ntfy-in
-  will not receive scheduled messages unless `scheduled=1` is added manually
-  via a custom filter (not currently exposed in the node editor).
+- Scheduled message delivery (`delay`) is supported for publishing but ntfy-watch
+  will not receive scheduled messages until they are actually delivered by the
+  ntfy server at the scheduled time.
 
 ---
 

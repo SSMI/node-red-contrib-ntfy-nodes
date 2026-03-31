@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-ntfy-nodes",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Node-RED nodes for publishing and subscribing to ntfy notification topics — AI generated, provided as-is without ongoing maintenance",
   "keywords": ["node-red", "ntfy", "notifications", "push", "alerts", "no-maintenance-intended"],
   "repository": {
@@ -17,6 +17,16 @@
       "ntfy-watch":  "ntfy-watch.js"
     }
   },
+  "files": [
+    "helpers.js",
+    "ntfy-config.js",
+    "ntfy-config.html",
+    "ntfy-send.js",
+    "ntfy-send.html",
+    "ntfy-watch.js",
+    "ntfy-watch.html",
+    "README.md",
+    "LICENSE"],
   "dependencies": {
     "mustache": "^4.2.0"
   },
