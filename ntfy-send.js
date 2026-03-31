@@ -12,7 +12,7 @@ const {
 } = require('./helpers');
 
 /**
- * ntfy-out
+ * ntfy-send
  *
  * Publish a notification to an ntfy topic when a message is received.
  *
@@ -25,7 +25,7 @@ const {
  */
 module.exports = function (RED) {
 
-    function NtfyOutNode(config) {
+    function NtfySendNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
 
@@ -49,7 +49,7 @@ module.exports = function (RED) {
         node.firebase = config.firebase || '';
 
         if (!node.serverConfig) {
-            node.error('ntfy-out: no server configured');
+            node.error('ntfy-send: no server configured');
             node.status({ fill: 'red', shape: 'ring', text: 'no server' });
             return;
         }
@@ -83,7 +83,7 @@ module.exports = function (RED) {
 
             // Topic is required
             if (!opts.topic) {
-                done(new Error('ntfy-out: no topic specified (set in node config or msg.ntfyOptions.topic)'));
+                done(new Error('ntfy-send: no topic specified (set in node config or msg.ntfyOptions.topic)'));
                 return;
             }
 
@@ -143,7 +143,7 @@ module.exports = function (RED) {
             // ------------------------------------------------------------------
             const serverUrl = parseUrl(`${node.serverConfig.server}/${opts.topic}`);
             if (!serverUrl) {
-                done(new Error(`ntfy-out: invalid server URL: ${node.serverConfig.server}`));
+                done(new Error(`ntfy-send: invalid server URL: ${node.serverConfig.server}`));
                 return;
             }
 
@@ -200,6 +200,6 @@ module.exports = function (RED) {
         });
     }
 
-    RED.nodes.registerType('ntfy-out', NtfyOutNode);
+    RED.nodes.registerType('ntfy-send', NtfySendNode);
 
 };

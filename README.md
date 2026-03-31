@@ -21,8 +21,7 @@ and runtime configuration via `msg.ntfyOptions`.
 | Node | Description |
 |---|---|
 | `ntfy-config` | Shared configuration — server URL and credentials |
-| `ntfy-out` | Publish a notification to a topic |
-| `ntfy-in` | Subscribe to one or more topics and receive notifications |
+| `ntfy-send` | Publish a notification to a topic |
 
 ## Installation
 
@@ -52,14 +51,14 @@ npm install /path/to/node-red-contrib-ntfy
 1. Add an **ntfy-config** node (via the Server dropdown in any ntfy node)
 2. Set the server URL — e.g. `http://ntfy:80` for a local Docker instance
 3. Choose an auth type and fill in credentials if required
-4. Drop an **ntfy-out** node, set a topic and connect `msg.payload` as the body
+4. Drop an **ntfy-send** node, set a topic and connect `msg.payload` as the body
 5. Drop an **ntfy-in** node, set the same topic, and wire its output to a debug node
 
 ---
 
 ## ntfy-config
 
-Shared configuration node. Not placed on the canvas — referenced by ntfy-out and
+Shared configuration node. Not placed on the canvas — referenced by ntfy-send and
 ntfy-in via a Server dropdown.
 
 ### Auth types
@@ -73,7 +72,7 @@ ntfy-in via a Server dropdown.
 
 ---
 
-## ntfy-out
+## ntfy-send
 
 Publish a notification. The message body comes from `msg.payload` unless overridden.
 
@@ -153,72 +152,6 @@ parsed JSON response from the ntfy server.
 
 ---
 
-## ntfy-in
-
-Subscribe to one or more topics. Emits one Node-RED message per ntfy notification.
-
-Connects on deploy and automatically reconnects when the connection drops.
-
-### Node editor fields
-
-| Field | Description |
-|---|---|
-| Topic(s) | Single topic or comma-separated list e.g. `alerts,warnings` |
-| Since | How far back to fetch cached messages on connect (`all`, `latest`, duration) |
-| Message filter | Server-side: only deliver messages containing this text |
-| Title filter | Server-side: only deliver messages with this title |
-| Priority filter | Server-side: e.g. `4,5` or `high,urgent` |
-| Tags filter | Server-side: only deliver messages tagged with this value |
-| Reconnect | Milliseconds to wait before reconnecting after a disconnect |
-
-### Output message properties
-
-| Property | Type | Description |
-|---|---|---|
-| `msg.payload` | string | Notification message body |
-| `msg.ntfyTopic` | string | Topic the message arrived on |
-| `msg.ntfyTitle` | string | Notification title (empty if not set) |
-| `msg.ntfyPriority` | number | Priority 1–5 |
-| `msg.ntfyTags` | array | Tag strings |
-| `msg.ntfyClick` | string | Click URL (empty if not set) |
-| `msg.ntfyIcon` | string | Icon URL (empty if not set) |
-| `msg.ntfyActions` | array | Action button objects |
-| `msg.ntfyAttachment` | object\|null | Attachment details or null |
-| `msg.ntfyId` | string | Unique message ID |
-| `msg.ntfyTime` | number | Unix timestamp (seconds) |
-| `msg.ntfyEvent` | string | Always "message" |
-| `msg.ntfyRaw` | object | Full raw event from the ntfy API |
-
-### Runtime control
-
-Send a message into the ntfy-in node to control it at runtime:
-
-```javascript
-// Stop the subscription
-msg.payload = "stop";
-
-// Restart (if stopped)
-msg.payload = "start";
-
-// Change topic or filters — triggers immediate reconnect
-msg.ntfyOptions = {
-    topic:      "new-topic",
-    since:      "10m",
-    filterPrio: "4,5"
-};
-```
-
-### Status
-
-| Colour | Shape | Meaning |
-|---|---|---|
-| Yellow | Ring | Connecting |
-| Green | Ring | Connected, waiting |
-| Green | Dot | Message received |
-| Red | Dot | Error |
-| Grey | Ring | Stopped |
-
----
 
 ## Action buttons
 
@@ -251,7 +184,7 @@ msg.ntfyOptions = {
 
 ### Simple alert
 ```
-[Inject] → [ntfy-out: topic=alerts, title=Test]
+[Inject] → [ntfy-send: topic=alerts, title=Test]
 ```
 `msg.payload` = `"Hello from Node-RED"` → sends a notification to the `alerts` topic.
 
@@ -264,7 +197,7 @@ msg.ntfyOptions = { message: msg.payload.body };
 
 ### Priority alert on error
 ```
-[loki-watch: errors] → [Function: set priority] → [ntfy-out]
+[loki-watch: errors] → [Function: set priority] → [ntfy-send]
 ```
 ```javascript
 // Function node
@@ -324,7 +257,7 @@ The Node-RED ntfy-config server URL for this setup would be `http://ntfy:80`
 
 ## Known limitations
 
-- File attachments (uploading a local file as binary) are not supported in ntfy-out.
+- File attachments (uploading a local file as binary) are not supported in ntfy-send.
   Use the *Attach URL* field to attach files from a URL instead.
 - The ntfy-in node uses the JSON HTTP stream endpoint rather than WebSockets.
   This is more reliable for long-running Node-RED deployments.

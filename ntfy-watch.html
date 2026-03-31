@@ -1,24 +1,23 @@
 <script type="text/javascript">
-    RED.nodes.registerType('ntfy-in', {
+    RED.nodes.registerType('ntfy-watch', {
         category: 'ntfy',
         color:    '#8B5CF6',
         defaults: {
             name:        { value: '' },
             server:      { value: '', type: 'ntfy-config', required: true },
             topic:       { value: '', required: true },
-            since:       { value: 'all' },
+            interval:    { value: 30 },
             filterMsg:   { value: '' },
             filterTitle: { value: '' },
             filterPrio:  { value: '' },
-            filterTags:  { value: '' },
-            reconnectMs: { value: 5000 }
+            filterTags:  { value: '' }
         },
         inputs:       1,
         outputs:      1,
         icon:         'font-awesome/fa-bell-o',
-        paletteLabel: 'ntfy in',
+        paletteLabel: 'ntfy watch',
         label: function () {
-            return this.name || (this.topic ? `ntfy ← ${this.topic}` : 'ntfy in');
+            return this.name || (this.topic ? `ntfy ⟳ ${this.topic}` : 'ntfy watch');
         },
         labelStyle: function () {
             return this.name ? 'node_label_italic' : '';
@@ -26,7 +25,7 @@
     });
 </script>
 
-<script type="text/html" data-template-name="ntfy-in">
+<script type="text/html" data-template-name="ntfy-watch">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Watch alerts topic">
@@ -41,15 +40,9 @@
             placeholder="alerts  or  alerts,warnings,system">
     </div>
     <div class="form-row">
-        <label for="node-input-since"><i class="fa fa-history"></i> Since</label>
-        <select id="node-input-since">
-            <option value="all">all — all cached messages</option>
-            <option value="latest">latest — most recent only</option>
-            <option value="10m">10 minutes</option>
-            <option value="1h">1 hour</option>
-            <option value="12h">12 hours</option>
-            <option value="24h">24 hours</option>
-        </select>
+        <label for="node-input-interval"><i class="fa fa-clock-o"></i> Poll every</label>
+        <input type="number" id="node-input-interval"
+            placeholder="30" style="width:80px"> seconds
     </div>
 
     <hr>
@@ -76,19 +69,15 @@
         <input type="text" id="node-input-filterTags"
             placeholder="e.g. warning">
     </div>
-
-    <hr>
-    <div class="form-row">
-        <label for="node-input-reconnectMs"><i class="fa fa-refresh"></i> Reconnect</label>
-        <input type="number" id="node-input-reconnectMs"
-            placeholder="5000" style="width:80px"> ms
-    </div>
 </script>
 
-<script type="text/html" data-help-name="ntfy-in">
-    <p>Subscribe to one or more ntfy topics and emit a message for each
-       notification received.</p>
-    <p>Connects automatically on deploy and reconnects if the connection drops.</p>
+<script type="text/html" data-help-name="ntfy-watch">
+    <p>Poll an ntfy topic on a fixed interval and emit a message for each new
+       notification. Starts automatically on deploy.</p>
+    <p>Tracks the last seen message ID as a watermark — only messages newer than
+       the last emitted message are returned on each poll. No messages are missed
+       as long as they remain in ntfy's cache (default 12 hours on self-hosted
+       instances).</p>
 
     <h3>Topics</h3>
     <p>Enter a single topic name or a comma-separated list.
@@ -110,7 +99,7 @@
         <dd>Priority 1–5. Default 3.</dd>
 
         <dt>ntfyTags <span class="property-type">string[]</span></dt>
-        <dd>Array of tag strings e.g. <code>["warning", "skull"]</code>.</dd>
+        <dd>Array of tag strings.</dd>
 
         <dt>ntfyClick <span class="property-type">string</span></dt>
         <dd>Click URL. Empty string if not set.</dd>
@@ -132,27 +121,45 @@
         <dd>Unix timestamp in seconds when the message was published.</dd>
 
         <dt>ntfyEvent <span class="property-type">string</span></dt>
-        <dd>Always <code>"message"</code> for emitted messages.</dd>
+        <dd>Always <code>"message"</code>.</dd>
 
         <dt>ntfyRaw <span class="property-type">object</span></dt>
         <dd>Full raw event object from the ntfy API.</dd>
     </dl>
 
     <h3>Runtime control — send into this node</h3>
+    <p>Wire an Inject node into ntfy-watch to control polling at runtime.</p>
     <dl class="message-properties">
-        <dt>payload = "stop"</dt>
-        <dd>Disconnect and stop reconnecting.</dd>
+        <dt>payload = "stop" <span class="property-type">string</span></dt>
+        <dd>Stop polling. The last seen message ID is preserved so polling
+            can resume later without replaying old messages.</dd>
 
-        <dt>payload = "start"</dt>
-        <dd>Reconnect if currently stopped.</dd>
+        <dt>payload = "start" <span class="property-type">string</span></dt>
+        <dd>Resume polling if currently stopped. Continues from the last seen
+            message ID — no messages are missed while stopped as long as they
+            remain in ntfy's cache.</dd>
+
+        <dt>payload = "reset" <span class="property-type">string</span></dt>
+        <dd>Clear the watermark and restart polling from now. Messages received
+            before the reset will not be re-emitted.</dd>
 
         <dt>ntfyOptions <span class="property-type">object</span></dt>
-        <dd>Change topic or filters at runtime. Triggers an immediate reconnect.</dd>
+        <dd>Change topic or filters at runtime. The watermark is reset and
+            polling restarts immediately with the new settings.</dd>
     </dl>
     <pre>
+// Stop polling
+msg.payload = "stop";
+
+// Resume from where we left off
+msg.payload = "start";
+
+// Restart from now (discard history)
+msg.payload = "reset";
+
+// Change topic or filters and restart
 msg.ntfyOptions = {
     topic:       "new-topic,another",
-    since:       "10m",
     filterPrio:  "4,5",
     filterTags:  "warning",
     filterMsg:   "error",
@@ -161,10 +168,9 @@ msg.ntfyOptions = {
 
     <h3>Status</h3>
     <ul>
-        <li><b>Yellow ring</b> — connecting</li>
-        <li><b>Green ring</b> — connected, waiting for messages</li>
-        <li><b>Green dot</b> — message received (shows topic name)</li>
-        <li><b>Red dot</b> — error</li>
+        <li><b>Green ring</b> — polling, no new messages since last check</li>
+        <li><b>Green dot</b> — new message(s) received (shows count)</li>
+        <li><b>Red dot</b> — poll error or auth failure</li>
         <li><b>Grey ring</b> — stopped</li>
     </ul>
 </script>

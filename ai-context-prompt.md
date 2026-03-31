@@ -26,7 +26,7 @@ Fields:
 
 ---
 
-## ntfy-out (publish node)
+## ntfy-send (publish node)
 
 Sends a notification to an ntfy topic when it receives an input message.
 
@@ -167,13 +167,13 @@ msg.ntfyOptions = {
 **Send a simple notification:**
 ```
 [Inject or upstream node]
-  → [ntfy-out: topic=alerts, title=Test]
+  → [ntfy-send: topic=alerts, title=Test]
 ```
 Set `msg.payload` to the notification body.
 
 **Send with dynamic topic and priority:**
 ```javascript
-// Function node before ntfy-out
+// Function node before ntfy-send
 msg.ntfyOptions = {
     topic:    "home-alerts",
     title:    "Container restarted",
@@ -183,7 +183,7 @@ msg.ntfyOptions = {
 };
 return msg;
 ```
-Then wire into ntfy-out with no static config (leave all fields blank — driven entirely by ntfyOptions).
+Then wire into ntfy-send with no static config (leave all fields blank — driven entirely by ntfyOptions).
 
 **Send with click action:**
 ```javascript
@@ -238,20 +238,20 @@ return msg;
 ```
 [ntfy-in: topic=heartbeat]
   → [Trigger: reset timer on each msg, fire after 5min silence]
-    → [ntfy-out: topic=admin, title="ntfy heartbeat missed"]
+    → [ntfy-send: topic=admin, title="ntfy heartbeat missed"]
 ```
 
 ---
 
 ## Integration with node-red-contrib-loki
 
-A common pattern in home-server setups: loki-watch detects an event, ntfy-out
+A common pattern in home-server setups: loki-watch detects an event, ntfy-send
 sends the alert.
 
 ```
 [loki-watch: {container="authelia"} |= "banned"]
   → [Function: build alert]
-  → [ntfy-out: topic=security-alerts]
+  → [ntfy-send: topic=security-alerts]
 ```
 
 ```javascript
@@ -273,7 +273,7 @@ return msg;
 - **Local file attachments** are not supported. Use `attach` with a URL only.
 - **ntfy-in** uses the JSON HTTP stream endpoint (not WebSockets). This is more
   reliable for long-running Node-RED instances.
-- **Scheduled messages** (`delay`) sent via ntfy-out will not appear in ntfy-in
+- **Scheduled messages** (`delay`) sent via ntfy-send will not appear in ntfy-in
   until they are delivered by the server at the scheduled time.
 - **Multiple topics** in ntfy-in are handled by ntfy's server-side multi-topic
   subscription — all arrive on the same output. Use a Switch node on `msg.ntfyTopic`
@@ -281,3 +281,51 @@ return msg;
 - **Auth** is set on the config node and applies to all publish/subscribe operations
   for that server. If you need different auth for different topics, create multiple
   ntfy-config nodes.
+
+---
+
+## ntfy-watch (polling subscribe node) — PREFERRED over ntfy-in
+
+Poll an ntfy topic on a fixed interval. More reliable than ntfy-in in Node.js
+environments. Use this for all subscribe use cases.
+
+**Node config fields:**
+- **Topic(s)** — single topic or comma-separated list e.g. `alerts,warnings`
+- **Poll every** — seconds between polls (default 30)
+- **Message / Title / Priority / Tags filters** — server-side filters, all optional
+
+**How it works:**
+- On first poll sets a timestamp watermark of "now" — only future messages are emitted
+- Tracks the last seen message ID and uses `since=<id>` on subsequent polls
+- Uses ntfy's `poll=1` parameter — connection opens, gets messages, closes cleanly
+- Emits messages in chronological order (oldest first) when multiple arrive in one poll
+
+**Output message properties:** identical to ntfy-in (see above).
+
+**Runtime control — send into ntfy-watch:**
+```javascript
+// Stop polling
+msg.payload = "stop";
+
+// Resume polling (continues from last seen message ID)
+msg.payload = "start";
+
+// Reset watermark to now and resume — re-emits nothing before this point
+msg.payload = "reset";
+
+// Change topic or filters — resets watermark and restarts
+msg.ntfyOptions = {
+    topic:       "new-topic",
+    filterPrio:  "4,5",
+    filterTags:  "warning"
+};
+```
+
+**Status:**
+- Green ring = polling, no new messages
+- Green dot = messages received (shows count)
+- Red dot = error
+- Grey ring = stopped
+
+---
+
