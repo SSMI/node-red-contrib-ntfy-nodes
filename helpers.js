@@ -49,23 +49,25 @@ function parseCustomHeaders(raw) {
 
 /**
  * Apply auth headers to a headers object in-place.
- * Handles all four auth types: none, basic, token, custom.
+ * First applies the chosen auth type (none/basic/token), then
+ * always applies any custom headers on top — custom headers are
+ * additive and work alongside any auth type.
  *
  * @param {object} headers  - headers object to mutate
  * @param {object} config   - ntfy-config node instance
  */
 function applyAuth(headers, config) {
+    // Step 1 — apply the chosen auth type
     const auth = buildAuthHeader(config);
     if (auth) {
         headers['Authorization'] = auth;
-        return;
     }
-    if (config.authType === 'custom') {
-        const custom = parseCustomHeaders(
-            config.credentials && config.credentials.customHeaders
-        );
-        Object.assign(headers, custom);
-    }
+
+    // Step 2 — always apply custom headers on top (additive)
+    const custom = parseCustomHeaders(
+        config.credentials && config.credentials.customHeaders
+    );
+    Object.assign(headers, custom);
 }
 
 // ---------------------------------------------------------------------------

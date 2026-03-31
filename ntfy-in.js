@@ -8,6 +8,23 @@ const {
     parseUrl
 } = require('./helpers');
 
+// Keep-alive agents — reuse sockets and prevent premature teardown
+const httpAgent  = new http.Agent({
+    keepAlive:            true,
+    keepAliveMsecs:       30000,
+    maxSockets:           10,
+    maxFreeSockets:       5,
+    timeout:              0        // no idle timeout — stream stays open indefinitely
+});
+
+const httpsAgent = new https.Agent({
+    keepAlive:            true,
+    keepAliveMsecs:       30000,
+    maxSockets:           10,
+    maxFreeSockets:       5,
+    timeout:              0
+});
+
 /**
  * ntfy-in
  *
@@ -19,7 +36,7 @@ const {
  *   msg.payload         {string}      - notification body
  *   msg.ntfyTopic       {string}      - topic the message arrived on
  *   msg.ntfyTitle       {string}      - title (empty string if not set)
- *   msg.ntfyPriority    {number}      - 1–5 (default 3)
+ *   msg.ntfyPriority    {number}      - 1-5 (default 3)
  *   msg.ntfyTags        {string[]}    - tag strings
  *   msg.ntfyClick       {string}      - click URL (empty string if not set)
  *   msg.ntfyIcon        {string}      - icon URL (empty string if not set)
@@ -56,6 +73,7 @@ module.exports = function (RED) {
         // Internal state
         node._active      = false;
         node._req         = null;
+        node._res         = null;
         node._reconnTimer = null;
 
         if (!node.serverConfig) {
@@ -65,7 +83,7 @@ module.exports = function (RED) {
         }
 
         // ------------------------------------------------------------------
-        // connect — open the streaming subscription
+        // connect - open the streaming subscription
         // ------------------------------------------------------------------
         function connect(overrides) {
             clearReconnectTimer();
@@ -86,7 +104,7 @@ module.exports = function (RED) {
                 return;
             }
 
-            // Build query string — ntfy supports comma-separated multi-topic
+            // Build query string
             const qs = new URLSearchParams();
             if (opts.since)       qs.set('since',    opts.since);
             if (opts.filterMsg)   qs.set('message',  opts.filterMsg);
@@ -94,6 +112,7 @@ module.exports = function (RED) {
             if (opts.filterPrio)  qs.set('priority', opts.filterPrio);
             if (opts.filterTags)  qs.set('tags',     opts.filterTags);
 
+            // ntfy supports comma-separated multi-topic in the URL path
             const topicPath = topic.split(',').map(t => t.trim()).join(',');
             const rawUrl    = `${node.serverConfig.server}/${topicPath}/json?${qs.toString()}`;
             const parsed    = parseUrl(rawUrl);
@@ -105,24 +124,36 @@ module.exports = function (RED) {
             }
 
             // Build request headers
-            const headers = {};
+            const headers = {
+                // Tell ntfy we want a streaming response kept open
+                'Accept':     'application/x-ndjson',
+                'Connection': 'keep-alive'
+            };
             applyAuth(headers, node.serverConfig);
+
+            const isHttps   = parsed.protocol === 'https:';
+            const transport = isHttps ? https : http;
+            const agent     = isHttps ? httpsAgent : httpAgent;
 
             const reqOpts = {
                 method:   'GET',
                 hostname: parsed.hostname,
                 port:     parsed.port,
                 path:     parsed.path,
-                headers
+                headers,
+                agent,
+                // No timeout on the request itself — the stream is intentionally
+                // long-lived. Reconnect logic handles drops instead.
+                timeout:  0
             };
 
             node.status({ fill: 'yellow', shape: 'ring', text: 'connecting' });
             node._active = true;
 
-            const transport = parsed.protocol === 'https:' ? https : http;
-
             const req = transport.request(reqOpts, (res) => {
-                // Handle auth errors — do not reconnect
+                node._res = res;
+
+                // Handle auth errors - do not reconnect
                 if (res.statusCode === 401 || res.statusCode === 403) {
                     node.status({ fill: 'red', shape: 'dot', text: 'auth error' });
                     node.error(`ntfy-in: authentication failed (HTTP ${res.statusCode})`);
@@ -131,21 +162,32 @@ module.exports = function (RED) {
                 }
 
                 if (res.statusCode !== 200) {
-                    node.status({ fill: 'red', shape: 'dot', text: `HTTP ${res.statusCode}` });
+                    node.status({
+                        fill:  'red',
+                        shape: 'dot',
+                        text:  `HTTP ${res.statusCode}`
+                    });
                     scheduleReconnect(overrides);
                     return;
                 }
 
                 node.status({ fill: 'green', shape: 'ring', text: `watching ${topic}` });
 
+                // Disable any socket-level timeout on the response socket so the
+                // long-lived stream is not torn down by inactivity
+                if (res.socket) {
+                    res.socket.setTimeout(0);
+                    res.socket.setKeepAlive(true, 30000);
+                }
+
                 let buffer = '';
 
                 res.on('data', (chunk) => {
                     buffer += chunk.toString();
 
-                    // ntfy sends one JSON object per line
+                    // ntfy sends one JSON object per line (NDJSON)
                     const lines = buffer.split('\n');
-                    buffer = lines.pop(); // keep any incomplete trailing line
+                    buffer = lines.pop(); // retain any incomplete trailing line
 
                     lines.forEach(line => {
                         line = line.trim();
@@ -162,23 +204,30 @@ module.exports = function (RED) {
                 });
 
                 res.on('error', (err) => {
+                    // Ignore errors from a deliberate destroy() during disconnect()
+                    if (!node._active) return;
                     node.error(`ntfy-in stream error: ${err.message}`);
-                    if (node._active) scheduleReconnect(overrides);
+                    scheduleReconnect(overrides);
                 });
             });
 
             req.on('error', (err) => {
+                // Ignore errors from a deliberate destroy() during disconnect()
+                if (!node._active) return;
                 node.status({ fill: 'red', shape: 'dot', text: 'connection error' });
                 node.error(`ntfy-in: ${err.message}`);
-                if (node._active) scheduleReconnect(overrides);
+                scheduleReconnect(overrides);
             });
+
+            // Disable request-level timeout — stream is intentionally long-lived
+            req.setTimeout(0);
 
             req.end();
             node._req = req;
         }
 
         // ------------------------------------------------------------------
-        // processLine — parse a single JSON line from the stream
+        // processLine - parse and emit a single NDJSON line from the stream
         // ------------------------------------------------------------------
         function processLine(line) {
             let event;
@@ -191,7 +240,11 @@ module.exports = function (RED) {
             // ntfy sends "open" and "keepalive" events — only emit "message"
             if (event.event !== 'message') return;
 
-            node.status({ fill: 'green', shape: 'dot', text: `msg on ${event.topic}` });
+            node.status({
+                fill:  'green',
+                shape: 'dot',
+                text:  `msg on ${event.topic}`
+            });
 
             const msg = {
                 payload:        event.message     || '',
@@ -213,20 +266,24 @@ module.exports = function (RED) {
         }
 
         // ------------------------------------------------------------------
-        // disconnect — cleanly stop the connection and cancel reconnect timer
+        // disconnect - cleanly stop the connection and cancel reconnect timer
         // ------------------------------------------------------------------
         function disconnect() {
             node._active = false;
             clearReconnectTimer();
+            if (node._res) {
+                try { node._res.destroy(); } catch (e) {}
+                node._res = null;
+            }
             if (node._req) {
-                node._req.destroy();
+                try { node._req.destroy(); } catch (e) {}
                 node._req = null;
             }
             node.status({ fill: 'grey', shape: 'ring', text: 'stopped' });
         }
 
         // ------------------------------------------------------------------
-        // scheduleReconnect — wait reconnectMs then call connect again
+        // scheduleReconnect - wait reconnectMs then call connect again
         // ------------------------------------------------------------------
         function scheduleReconnect(overrides) {
             if (!node._active) return;
@@ -244,7 +301,7 @@ module.exports = function (RED) {
         }
 
         // ------------------------------------------------------------------
-        // Input message handler — runtime control
+        // Input message handler - runtime control
         // ------------------------------------------------------------------
         node.on('input', function (msg) {
             if (msg.payload === 'stop') {

@@ -9,13 +9,14 @@
  * Properties:
  *   name     {string} - display name
  *   server   {string} - base URL e.g. http://ntfy:80
- *   authType {string} - "none" | "basic" | "token" | "custom"
+ *   authType {string} - "none" | "basic" | "token"
  *   username {string} - for basic auth
  *
  * Credentials (stored encrypted by Node-RED):
  *   password      - for basic auth
  *   token         - for bearer token auth
- *   customHeaders - newline-separated "Key: Value" pairs for custom auth
+ *   customHeaders - optional extra headers applied on top of any auth type
+ *                   newline-separated "Key: Value" pairs
  */
 module.exports = function (RED) {
 

@@ -19,7 +19,6 @@
             function showAuth(type) {
                 $('#ntfy-auth-basic').toggle(type === 'basic');
                 $('#ntfy-auth-token').toggle(type === 'token');
-                $('#ntfy-auth-custom').toggle(type === 'custom');
             }
             showAuth(this.authType || 'none');
             $('#node-config-input-authType').on('change', function () {
@@ -38,13 +37,14 @@
         <label for="node-config-input-server"><i class="fa fa-server"></i> Server URL</label>
         <input type="text" id="node-config-input-server" placeholder="http://ntfy:80">
     </div>
+
+    <hr>
     <div class="form-row">
         <label for="node-config-input-authType"><i class="fa fa-lock"></i> Auth type</label>
         <select id="node-config-input-authType">
             <option value="none">None</option>
             <option value="basic">Username &amp; password</option>
             <option value="token">Access token</option>
-            <option value="custom">Custom headers</option>
         </select>
     </div>
     <div id="ntfy-auth-basic">
@@ -63,14 +63,18 @@
             <input type="password" id="node-config-input-token" placeholder="tk_...">
         </div>
     </div>
-    <div id="ntfy-auth-custom">
-        <div class="form-row">
-            <label for="node-config-input-customHeaders"><i class="fa fa-code"></i> Headers</label>
-            <textarea id="node-config-input-customHeaders" rows="4"
-                placeholder="Authorization: Bearer mytoken&#10;X-Custom-Header: value"
-                style="width:70%;font-family:monospace;font-size:12px"></textarea>
-        </div>
-        <div class="form-tips">One header per line in <code>Key: Value</code> format.</div>
+
+    <hr>
+    <div class="form-row">
+        <label for="node-config-input-customHeaders"><i class="fa fa-code"></i> Extra headers</label>
+        <textarea id="node-config-input-customHeaders" rows="4"
+            placeholder="X-Custom-Header: value&#10;Another-Header: value"
+            style="width:70%;font-family:monospace;font-size:12px"></textarea>
+    </div>
+    <div class="form-tips">
+        Optional. One header per line in <code>Key: Value</code> format.
+        Applied on top of the chosen auth type — useful for reverse proxies
+        or any extra headers your ntfy setup requires.
     </div>
 </script>
 
@@ -90,9 +94,14 @@
         <dt>Access token</dt>
         <dd>Bearer token auth. Create tokens in the ntfy web UI or via the ntfy CLI.
             Tokens typically start with <code>tk_</code>.</dd>
-
-        <dt>Custom headers</dt>
-        <dd>Supply arbitrary headers one per line in <code>Key: Value</code> format.
-            Useful for reverse-proxy authentication schemes or non-standard setups.</dd>
     </dl>
+
+    <h3>Extra headers</h3>
+    <p>Optional additional headers applied on top of the chosen auth type.
+       One <code>Key: Value</code> pair per line. Useful for:</p>
+    <ul>
+        <li>Reverse proxy authentication headers</li>
+        <li>Custom headers required by your ntfy setup</li>
+        <li>Overriding the Authorization header set by the auth type above</li>
+    </ul>
 </script>
